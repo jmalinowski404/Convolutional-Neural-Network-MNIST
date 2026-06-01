@@ -7,6 +7,7 @@ import sklearn
 import numpy as np
 from PIL import Image
 from PIL import ImageEnhance
+import cv2
 
 from CNN import *
 
@@ -18,8 +19,17 @@ transform = transforms.Compose([
 dataset_train = torchvision.datasets.MNIST(root='data', download=False, train=True, transform=transform)
 dataset_test = torchvision.datasets.MNIST(root='data', download=False, train=False, transform=transform)
 
-train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=64, shuffle=True)
-test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=False)
+train_loader = torch.utils.data.DataLoader(
+    dataset_train,
+    batch_size=64,
+    shuffle=True,
+)
+
+test_loader = torch.utils.data.DataLoader(
+    dataset_test,
+    batch_size=64,
+    shuffle=False
+)
 
 network = Net()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -32,32 +42,35 @@ def train():
 
     network.train()
 
-    for epoch in range(10):
-        total_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            inputs, labels = data
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+    with open("train_log.txt", "w") as f:
+        for epoch in range(10):
+            total_loss = 0.0
+            for i, data in enumerate(train_loader, 0):
+                inputs, labels = data
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
-            optimizer.zero_grad()
+                optimizer.zero_grad()
 
-            outputs = network(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+                outputs = network(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-            total_loss += loss.item()
-            with open("train_log.txt", "a") as f:
+                total_loss += loss.item()
+
                 if i % 100 == 99:
                     f.write(f"[{epoch + 1}, {i}] loss: {total_loss / 100}\n")
                     total_loss = 0.0
+
     torch.save(network.state_dict(), "network.pth")
 
 def test():
     network.load_state_dict(torch.load("network.pth", weights_only=True))
+    network.to(device)
     network.eval()
     with torch.no_grad():
-        with open("test_log.txt", "a") as f:
+        with open("test_log.txt", "w") as f:
             labels_ = []
             predictions_ = []
             for data in test_loader:
@@ -88,28 +101,33 @@ def predict():
     network.eval()
 
     with open("custom_test_log.txt", "w") as f:
-        for i in range(10):
-            path = f"test_images/{i}.jpg"
-            img = Image.open(path)
-            grayscale_img = img.convert('L')
-            resized_img = grayscale_img.resize((28, 28))
-            enhancer = PIL.ImageEnhance.Contrast(resized_img)
-            contrasted_img = enhancer.enhance(2.0)
-            pointed_img = contrasted_img.point(lambda x: 255 if x > 128 else 0)
-            inverted_colors = PIL.ImageOps.invert(pointed_img)
-            inverted_colors.save(f"debug_images/debug_{i}.png")
-            tensor_image = transform(inverted_colors)
-            tensor_image = tensor_image.unsqueeze(0)
+        with torch.no_grad():
+            for i in range(10):
+                path = f"test_images/{i}.jpg"
+                img = Image.open(path)
+                grayscale_img = img.convert('L')
+                resized_img = grayscale_img.resize((28, 28))
+                enhancer = PIL.ImageEnhance.Contrast(resized_img)
+                contrasted_img = enhancer.enhance(3.0)
+                pointed_img = contrasted_img.point(lambda x: 255 if x > 128 else 0)
+                inverted_colors = PIL.ImageOps.invert(pointed_img)
+                inverted_colors.save(f"debug_images/debug_{i}.png")
+                tensor_image = transform(inverted_colors)
+                tensor_image = tensor_image.unsqueeze(0)
 
-            tensor_image = tensor_image.to(device)
+                tensor_image = tensor_image.to(device)
 
-            with torch.no_grad():
+
                 output = network(tensor_image)
                 _, prediction = torch.max(output, 1)
 
                 inverted_colors.show()
                 f.write(f"Plik: {path}\n")
-                f.write(f"Predykcja: {prediction.item()}\n\n")
+                f.write(f"Predykcja: {prediction.item()}\n")
+
+                probabilities = torch.nn.functional.softmax(output, dim=1)
+                probs = [f"{p:.3f}" for p in probabilities[0].tolist()]
+                f.write(f"Pewnosc: {probs}\n\n")
 
 def printMenu():
     print("==== CNN ====")
