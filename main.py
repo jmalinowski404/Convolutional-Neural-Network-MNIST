@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import sklearn
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL import ImageEnhance
 import cv2
 
@@ -105,7 +105,8 @@ def predict():
             for i in range(10):
                 path = f"test_images/{i}.jpg"
                 img = Image.open(path)
-                grayscale_img = img.convert('L')
+                image = ImageOps.exif_transpose(img)
+                grayscale_img = image.convert('L')
                 resized_img = grayscale_img.resize((28, 28))
                 enhancer = PIL.ImageEnhance.Contrast(resized_img)
                 contrasted_img = enhancer.enhance(3.0)
@@ -121,7 +122,7 @@ def predict():
                 output = network(tensor_image)
                 _, prediction = torch.max(output, 1)
 
-                inverted_colors.show()
+                #inverted_colors.show()
                 f.write(f"Plik: {path}\n")
                 f.write(f"Predykcja: {prediction.item()}\n")
 
