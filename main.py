@@ -59,9 +59,8 @@ def train():
 
                 total_loss += loss.item()
 
-                if i % 100 == 99:
-                    f.write(f"[{epoch + 1}, {i}] loss: {total_loss / 100}\n")
-                    total_loss = 0.0
+                f.write(f"[{epoch + 1}, {i}] loss: {total_loss / 100}\n")
+                total_loss = 0.0
 
     torch.save(network.state_dict(), "network.pth")
 
